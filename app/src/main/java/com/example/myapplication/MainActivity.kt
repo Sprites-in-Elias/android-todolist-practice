@@ -43,6 +43,7 @@ import androidx.room.Room
 import com.example.myapplication.ui.theme.MyApplicationTheme
 import com.example.myapplication.Todo
 import kotlinx.coroutines.launch
+import kotlin.text.isNotBlank
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -60,16 +61,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
-@Composable
-fun MainAct(
-    modifier: Modifier = Modifier,
-    db: TodoDatabase
-): Unit {
-    val todoList by db.todoDao().getAllTodos().collectAsStateWithLifecycle(initialValue = emptyList())
-    var text by remember { mutableStateOf("") }
 
-    val scope = rememberCoroutineScope()
-    Column(modifier = Modifier.padding(16.dp)) {
+@Composable
+fun MainScreen(
+    todoList: List<Todo>,
+    onAdd: (String) -> Unit,
+    onDelete: (Todo) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var text by remember { mutableStateOf("") }
+    Column(modifier = modifier.padding(16.dp)) {
         InputArea(
             text = text,
             onTextChanged = {text = it},
@@ -80,9 +81,7 @@ fun MainAct(
                     val newTodo = Todo(title = text)
                     Log.d("MyTheme", "생성된 Todo 객체: $newTodo") // 여기서 title이 빈칸이면 생성자 문제
 
-                    scope.launch {
-                        db.todoDao().insert(newTodo)
-                    }
+                    onAdd(text)
                     text = ""
                     Log.d("MyTheme", "추가됨 ${todoList.size}");
                 }
@@ -90,7 +89,9 @@ fun MainAct(
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(16.dp))
-        LazyColumn {
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth()
+        ) {
             items(todoList) { todo ->
                 Log.d("MyTheme", "출력:${todo}")
                 Row {
@@ -101,9 +102,7 @@ fun MainAct(
                         onClick = {
                             Log.d("MyTheme", todo.toString())
 //                            todoList.remove(todo)
-                            scope.launch {
-                                db.todoDao().delete(todo) // DB에서 삭제
-                            }
+                            onDelete(todo)
                         }
                     ) {
                         Text("완료");
@@ -112,6 +111,22 @@ fun MainAct(
             }
         }
     }
+}
+@Composable
+fun MainAct(
+    modifier: Modifier = Modifier,
+    db: TodoDatabase
+): Unit {
+    val todoList by db.todoDao().getAllTodos().collectAsStateWithLifecycle(initialValue = emptyList())
+
+    val scope = rememberCoroutineScope()
+    MainScreen(
+        todoList = todoList,
+        onAdd = { text -> scope.launch { db.todoDao().insert(Todo(title=text)) }},
+        onDelete = { todo -> scope.launch { db.todoDao().delete(todo) } },
+        modifier = modifier
+    )
+
 }
 
 @Composable
@@ -175,12 +190,21 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
     )
 }
 
-//@Preview(showBackground = true)
-//@Composable
-//fun GreetingPreview() {
-//    MyApplicationTheme {
-//        Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-//            MainAct(modifier = Modifier.padding(innerPadding))
-//        }
-//    }
-//}
+@Preview(showBackground = true)
+@Composable
+fun GreetingPreview() {
+    val mockData = listOf(
+        Todo(1, "공부하기", false),
+        Todo(2, "운동하기", true)
+    )
+    MyApplicationTheme {
+        Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+            MainScreen(
+                modifier = Modifier.padding(innerPadding),
+                todoList = mockData,
+                onAdd = {},
+                onDelete = {}
+            )
+        }
+    }
+}
