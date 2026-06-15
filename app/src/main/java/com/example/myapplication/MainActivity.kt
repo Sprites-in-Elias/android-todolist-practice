@@ -38,6 +38,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.room.Room
 import com.example.myapplication.ui.theme.MyApplicationTheme
 import com.example.myapplication.Todo
 import kotlinx.coroutines.launch
@@ -45,34 +47,42 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-//        enableEdgeToEdge()
-//        setContent {
-//            MyApplicationTheme {
-//                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-//                    ToggleTextScreen(modifier = Modifier.padding(innerPadding))
-//                }
-//            }
-//        }
+        val db = TodoDatabase.getDatabase(this)
         setContent {
             MyApplicationTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    MainAct(modifier = Modifier.padding(innerPadding))
+                    MainAct(
+                        modifier = Modifier.padding(innerPadding),
+                        db = db
+                    )
                 }
             }
         }
     }
 }
 @Composable
-fun MainAct(modifier: Modifier = Modifier): Unit {
-    val todoList = remember { mutableStateListOf<Todo>() }
+fun MainAct(
+    modifier: Modifier = Modifier,
+    db: TodoDatabase
+): Unit {
+    val todoList by db.todoDao().getAllTodos().collectAsStateWithLifecycle(initialValue = emptyList())
     var text by remember { mutableStateOf("") }
+
+    val scope = rememberCoroutineScope()
     Column(modifier = Modifier.padding(16.dp)) {
         InputArea(
             text = text,
             onTextChanged = {text = it},
             onAddClicked = {
+                Log.d("MyTheme", "입력된 텍스트: '$text'") // 이거 꼭 추가해서 봐봐
                 if (text.isNotBlank()) {
-                    todoList.add(Todo(todoList.size, text))
+//                    todoList.add(Todo(todoList.size, text))
+                    val newTodo = Todo(title = text)
+                    Log.d("MyTheme", "생성된 Todo 객체: $newTodo") // 여기서 title이 빈칸이면 생성자 문제
+
+                    scope.launch {
+                        db.todoDao().insert(newTodo)
+                    }
                     text = ""
                     Log.d("MyTheme", "추가됨 ${todoList.size}");
                 }
@@ -82,8 +92,23 @@ fun MainAct(modifier: Modifier = Modifier): Unit {
         Spacer(modifier = Modifier.height(16.dp))
         LazyColumn {
             items(todoList) { todo ->
-                // 리스트 아이템도 따로 컴포넌트로 빼면 좋아
-                Text(text = todo.title)
+                Log.d("MyTheme", "출력:${todo}")
+                Row {
+                    Text(
+                        text = todo.title
+                    )
+                    Button(
+                        onClick = {
+                            Log.d("MyTheme", todo.toString())
+//                            todoList.remove(todo)
+                            scope.launch {
+                                db.todoDao().delete(todo) // DB에서 삭제
+                            }
+                        }
+                    ) {
+                        Text("완료");
+                    }
+                }
             }
         }
     }
@@ -150,12 +175,12 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
     )
 }
 
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    MyApplicationTheme {
-        Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-            MainAct(modifier = Modifier.padding(innerPadding))
-        }
-    }
-}
+//@Preview(showBackground = true)
+//@Composable
+//fun GreetingPreview() {
+//    MyApplicationTheme {
+//        Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+//            MainAct(modifier = Modifier.padding(innerPadding))
+//        }
+//    }
+//}
